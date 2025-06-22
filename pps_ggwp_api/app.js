@@ -3,6 +3,8 @@ const cors = require('cors');
 const path = require('path');
 const paymentRoutes = require('./routes/payment');
 const orderRoutes = require('./routes/order');
+const notificationRoutes = require('./routes/notification');
+
 
 require('dotenv').config();
 const app = express();
@@ -14,6 +16,7 @@ app.use(express.static('public'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/v1/payment', paymentRoutes);
 app.use('/v1/orders', orderRoutes);
+app.use('/v1/notificationSender', notificationRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

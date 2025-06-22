@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const db = require('../db');
+const notification = require('../routes/notification');
 
 const router = express.Router();
 
@@ -16,7 +17,50 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  fileFilter: (req, file, cb) => {
+    // Validasi tipe file
+    const allowedTypes = /jpeg|jpg|png|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('INVALID_FILE_TYPE'));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+// Middleware to handle multer errors
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        status: 'FAIL', 
+        message: 'File size too large. Maximum 5MB allowed.' 
+      });
+    }
+    return res.status(400).json({ 
+      status: 'FAIL', 
+      message: 'File upload error' 
+    });
+  } else if (err) {
+    if (err.message === 'INVALID_FILE_TYPE') {
+      return res.status(400).json({ 
+        status: 'FAIL', 
+        message: 'Invalid file type. Only JPEG, JPG, PNG, and PDF files are allowed.' 
+      });
+    }
+    return res.status(400).json({ 
+      status: 'FAIL', 
+      message: err.message 
+    });
+  }
+  next();
+};
 
 // MOVE THIS ROUTE FIRST - before any parameterized routes
 router.get('/all', async (req, res) => {
@@ -65,7 +109,14 @@ router.get('/:id/form', async (req, res) => {
  * POST /v1/payment/:id/form
  * Upload bukti pembayaran berdasarkan order_id
  */
-router.post('/:id/form', upload.single('file'), async (req, res) => {
+router.post('/:id/form', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      return handleMulterError(err, req, res, next);
+    }
+    next();
+  });
+}, async (req, res) => {
   const { id } = req.params; // ORDER001, etc
   const filePath = req.file?.filename;
 
@@ -99,6 +150,19 @@ router.post('/:id/form', upload.single('file'), async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    // Send notification after successful commit
+    try {
+      notification.send(
+        id,
+        'Pembayaran Anda telah diterima dan sedang diverifikasi.',
+        'success'
+      );
+    } catch (notifErr) {
+      console.error('Notification error:', notifErr);
+      // Don't fail the request if notification fails
+    }
+
     res.json({ status: 'SUCCESS' });
   } catch (err) {
     await client.query('ROLLBACK');

@@ -18,22 +18,34 @@ export default function PaymentPage() {
   const handleSubmit = async () => {
     if (!file || !payment) return;
     setSubmitting(true);
+
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('price', payment.price);
+    formData.append('amount', payment.price);
     formData.append('rekeningTujuan', 'BNI 12345678');
 
-    const res = await fetch(`http://localhost:3001/v1/payment/${id}/form`, {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await fetch(`http://localhost:3001/v1/payment/${id}/form`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (res.ok) {
-      alert('Bukti pembayaran berhasil dikirim.');
-      router.push('/orders');
-    } else {
-      alert('Gagal mengirim bukti pembayaran.');
+      const data = await res.json();
+
+      if (res.ok) {
+        console.log(`[NOTIF][SUCCESS] User berhasil upload bukti ORDER ${id}`);
+        alert('Bukti pembayaran berhasil dikirim.');
+        router.push('/orders');
+      } else {
+        console.log(`[NOTIF][FAIL] Upload gagal untuk ORDER ${id}:`, data.message);
+        // Display the actual API error message
+        alert(data.message || 'Gagal mengirim bukti pembayaran.');
+      }
+    } catch (error) {
+      console.log(`[NOTIF][FAIL] Network error untuk ORDER ${id}:`, error);
+      alert('Terjadi kesalahan jaringan. Silakan coba lagi.');
     }
+
     setSubmitting(false);
   };
 
@@ -61,10 +73,19 @@ export default function PaymentPage() {
             <span className="text-4xl">📄</span>
             <span className="text-sm text-gray-500 mb-2 text-gray-500">upload gambar</span>
             <input
+              id="file-upload"
               type="file"
               accept="image/png, image/jpeg, application/pdf"
+              className="hidden"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
+
+            <label
+              htmlFor="file-upload"
+              className="cursor-pointer bg-purple-100 text-purple-800 px-4 py-2 rounded font-semibold hover:bg-purple-200 transition"
+            >
+              {file ? `📎 ${file.name}` : 'Pilih File Bukti Pembayaran'}
+            </label>
           </div>
         </div>
 
@@ -73,7 +94,7 @@ export default function PaymentPage() {
           disabled={submitting || !file}
           className="bg-purple-600 hover:bg-purple-700 text-white py-2 w-full rounded disabled:opacity-50"
         >
-          {submitting ? 'Mengirim...' : 'Konfirmasi'}
+          {submitting ? 'Mengirim...' : 'Kirim Bukti Pembayaran'}
         </button>
       </div>
     </div>
